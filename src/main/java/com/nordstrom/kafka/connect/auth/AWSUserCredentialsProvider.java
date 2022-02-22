@@ -2,43 +2,36 @@ package com.nordstrom.kafka.connect.auth;
 
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 import org.apache.kafka.common.Configurable;
+import com.amazonaws.auth.BasicAWSCredentials;
 
 import java.util.Map;
 
 //import org.slf4j.Logger;
 //import org.slf4j.LoggerFactory;
 
-public class AWSAssumeRoleCredentialsProvider implements AWSCredentialsProvider, Configurable {
+public class AWSUserCredentialsProvider implements AWSCredentialsProvider, Configurable {
 //  Uncomment slf4j imports and field declaration to enable logging.
-//  private static final Logger log = LoggerFactory.getLogger(AWSAssumeRoleCredentialsProvider.class);
+//  private static final Logger log = LoggerFactory.getLogger(AWSUserCredentialsProvider.class);
 
-  public static final String EXTERNAL_ID_CONFIG = "external.id";
-  public static final String ROLE_ARN_CONFIG = "role.arn";
-  public static final String SESSION_NAME_CONFIG = "session.name";
+  public static final String ACCESS_KEY_CONFIG = "access.key";
+  public static final String SECRET_KEY_CONFIG = "secret.key";
 
-  private String externalId;
-  private String roleArn;
-  private String sessionName;
+  private String accessKey;
+  private String secretKey;
 
   @Override
   public void configure(Map<String, ?> map) {
-    externalId = getOptionalField(map, EXTERNAL_ID_CONFIG);
-    roleArn = getRequiredField(map, ROLE_ARN_CONFIG);
-    sessionName = getRequiredField(map, SESSION_NAME_CONFIG);
+    accessKey = getRequiredField(map, ACCESS_KEY_CONFIG);
+    secretKey = getRequiredField(map, SECRET_KEY_CONFIG);
   }
 
   @Override
   public AWSCredentials getCredentials() {
-    AWSSecurityTokenServiceClientBuilder clientBuilder = AWSSecurityTokenServiceClientBuilder.standard();
-    AWSCredentialsProvider provider = new STSAssumeRoleSessionCredentialsProvider.Builder(roleArn, sessionName)
-        .withStsClient(clientBuilder.defaultClient())
-        .withExternalId(externalId)
-        .build();
+    BasicAWSCredentials provider = new BasicAWSCredentials(accessKey, secretKey);
 
-    return provider.getCredentials();
+    return provider;
   }
 
   @Override
@@ -83,15 +76,11 @@ public class AWSAssumeRoleCredentialsProvider implements AWSCredentialsProvider,
     }
   }
 
-  public String getExternalId() {
-    return this.externalId;
+  public String getAccessKey() {
+    return this.accessKey;
   }
 
-  public String getRoleArn() {
-    return this.roleArn;
-  }
-
-  public String getSessionName() {
-    return this.sessionName;
+  public String getSecretKey() {
+    return this.secretKey;
   }
 }
