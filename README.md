@@ -33,6 +33,8 @@ In addition to the standard [Kafka Connect connector configuration](https://kafk
 | `aws.lambda.invocation.mode` | No | `SYNC` | `SYNC` for a synchronous invocation; otherwise `ASYNC` |
 | `aws.lambda.invocation.failure.mode` | No | `STOP` | Whether to `STOP` processing, or `DROP` and continue after an invocation failure |
 | `aws.lambda.batch.enabled` | No | `true` | `true` to batch messages together before an invocation; otherwise `false` |
+| `aws.lambda.batch.size` | No | 9999999 | Determines max size of array of records, when invoking the Lambda |
+| `aws.lambda.batch.delay.ms` | No | `100` | Time to wait for a lambda invocation before continuing (Period time) |
 | `aws.region` | Yes | | AWS region of the Lambda function |
 | `http.proxy.host` | No | | HTTP proxy host name |
 | `http.proxy.port` | No | | HTTP proxy port number |
