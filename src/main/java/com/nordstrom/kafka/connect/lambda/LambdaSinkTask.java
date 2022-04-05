@@ -30,7 +30,9 @@ public class LambdaSinkTask extends SinkTask {
   private PayloadFormatter payloadFormatter;
   private Boolean isBatchingRecords;
   private int maxRetryCount;
+  private int maxBatchSize;
   private long retryBackoffMs;
+  private long batchDelayMs;
   private Collection<Integer> retriableErrorCodes;
 
   @Override
@@ -48,6 +50,8 @@ public class LambdaSinkTask extends SinkTask {
     this.invocationClient = config.getInvocationClient();
     this.payloadFormatter = config.getPayloadFormatter();
     this.isBatchingRecords = config.isBatchingEnabled();
+    this.maxBatchSize = config.getBatchSize();
+    this.batchDelayMs = config.getBatchDelay();
     this.maxRetryCount = config.getRetries();
     this.retryBackoffMs = config.getRetryBackoffTimeMillis();
     this.retriableErrorCodes = config.getRetriableErrorCodes();
@@ -70,16 +74,25 @@ public class LambdaSinkTask extends SinkTask {
     }
 
     if (this.isBatchingRecords) {
-      this.batchRecords.addAll(records);
-      final int batchLength = this.getPayload(this.batchRecords).getBytes().length;
-      if (batchLength >= maxBatchSizeBytes) {
-        LOGGER.warn("Batch size reached {} bytes within {} records. connector=\"{}\"",
-                batchLength,
-                this.batchRecords.size(),
-                this.connectorName);
+      if (this.batchDelayMs * (records.size() / this.maxBatchSize) > 240000) {
+        LOGGER.warn("Avoiding long put batch of {} records (max batch Size = {})",
+          records.size(),
+          this.maxBatchSize
+        );
+        final List<SinkRecord> nextBatch = (new ArrayList<>(records)).subList(0, this.maxBatchSize);
+        for (SinkRecord r : nextBatch) {
+          this.context.offset(new TopicPartition(r.topic(), r.kafkaPartition()), r.kafkaOffset() + 1);
+        }
+        this.batchRecords.addAll(nextBatch);
+
         this.rinse();
         this.context.requestCommit();
+        return;
       }
+
+      this.batchRecords.addAll(records);
+      this.rinse();
+      this.context.requestCommit();
     }
     else {
       for (final SinkRecord record : records) {
@@ -96,12 +109,9 @@ public class LambdaSinkTask extends SinkTask {
 
   private void rinse() {
     final List<SinkRecord> records = new ArrayList<>(this.batchRecords);
-
     if (! records.isEmpty()) {
-
       this.splitBatch(records, maxBatchSizeBytes)
               .forEach(recordsToFlush -> {
-
                 final InvocationResponse response = this.invoke(this.getPayload(recordsToFlush));
 
                 final String responsesMsg = recordsToFlush.stream().map(r -> MessageFormat
@@ -123,8 +133,13 @@ public class LambdaSinkTask extends SinkTask {
                           response.getEnd().toEpochMilli() - response.getStart().toEpochMilli(),
                           responsesMsg);
                   LOGGER.info(message);
-
                   this.batchRecords.removeAll(recordsToFlush);
+
+                  if ((this.batchDelayMs - response.getEnd().toEpochMilli() + response.getStart().toEpochMilli()) > 0) {
+                    try {
+                      Thread.sleep(this.batchDelayMs - response.getEnd().toEpochMilli() + response.getStart().toEpochMilli());
+                    } catch (InterruptedException e) {}
+                  }
                 }
               });
 
@@ -144,22 +159,28 @@ public class LambdaSinkTask extends SinkTask {
     final List<Collection<SinkRecord>> result = new ArrayList<>();
     final int batchLength = this.getPayload(records).getBytes().length;
 
-    if (records.size() <= 1 || batchLength < maxBatchSizeBytes) {
+    if (records.size() <= 1 || ((batchLength < maxBatchSizeBytes) && (records.size() <= this.maxBatchSize))) {
       result.add(records);
       return result;
     }
 
-    final int middle = records.size() / 2;
+    final int middle;
+
+    if ((batchLength < maxBatchSizeBytes) && (this.maxBatchSize > 0) && (records.size() > this.maxBatchSize)) {
+      middle = this.maxBatchSize;
+    } else {
+      middle = records.size() / 2;
+    }
     final int size = records.size();
 
     final List<SinkRecord> lower = records.subList(0, middle);
     final List<SinkRecord> upper = records.subList(middle, size);
 
     LOGGER.info("Splitting batch of {} records and {} bytes into 1) {} records  2) {} records",
-            records.size(),
-            batchLength,
-            lower.size(),
-            upper.size()
+      records.size(),
+      batchLength,
+      lower.size(),
+      upper.size()
     );
 
     result.addAll(this.splitBatch(lower, maxBatchSizeBytes));

@@ -24,6 +24,14 @@ public class LambdaSinkConnectorConfig extends AbstractConfig {
     static final String BATCH_RECORDS_ENABLED_DOC = "Determines whether to send individual records, or an array of records, when invoking the Lambda";
     static final boolean BATCH_RECORDS_ENABLED_DEFAULT = true;
 
+    static final String BATCH_RECORDS_SIZE_KEY = "aws.lambda.batch.size";
+    static final String BATCH_RECORDS_SIZE_DOC = "Determines max size of array of records, when invoking the Lambda";
+    static final int BATCH_RECORDS_SIZE_DEF = 9999999;
+
+    static final String BATCH_RECORDS_DELAY_KEY = "aws.lambda.batch.delay.ms";
+    static final String BATCH_RECORDS_DELAY_DOC = "Determines max delay of invoke between records";
+    static final int BATCH_RECORDS_DELAY_DEF = 100;
+
     static final String RETRIES_MAX_KEY = "retries.max";
     static final String RETRIES_MAX_DOC = "Max number of times to retry the Lambda invocation";
     static final int RETRIES_DEFAULT = 5;
@@ -59,6 +67,14 @@ public class LambdaSinkConnectorConfig extends AbstractConfig {
 
     public boolean isBatchingEnabled() {
         return this.getBoolean(BATCH_RECORDS_ENABLED_KEY);
+    }
+
+    public int getBatchSize() {
+        return this.getInt(BATCH_RECORDS_SIZE_KEY);
+    }
+
+    public long getBatchDelay() {
+        return this.getInt(BATCH_RECORDS_DELAY_KEY);
     }
 
     public long getRetryBackoffTimeMillis() {
@@ -111,6 +127,18 @@ public class LambdaSinkConnectorConfig extends AbstractConfig {
                 BATCH_RECORDS_ENABLED_DEFAULT,
                 Importance.MEDIUM,
                 BATCH_RECORDS_ENABLED_DOC)
+
+            .define(BATCH_RECORDS_SIZE_KEY,
+                Type.INT,
+                BATCH_RECORDS_SIZE_DEF,
+                Importance.LOW,
+                BATCH_RECORDS_SIZE_DOC)
+
+            .define(BATCH_RECORDS_DELAY_KEY,
+                Type.INT,
+                BATCH_RECORDS_DELAY_DEF,
+                Importance.LOW,
+                BATCH_RECORDS_DELAY_DOC)
 
             .define(RETRIES_MAX_KEY,
                 Type.INT,
